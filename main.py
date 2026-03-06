@@ -1,12 +1,15 @@
 import os
 import asyncio
 import logging
-from aiohttp import web
+import threading
+from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
-# === ⚙️ ТАНЗИМОТИ АСОСӢ ===
+# ==========================================
+# ⚙️ ТАНЗИМОТИ АСОСӢ
+# ==========================================
 BOT_TOKEN = "7720127842:AAF6a0hU3Gmvgid7D635E1-gT4YCvvNT89c"
 WEB_APP_URL = "https://spin-ton-rewards.lovable.app/"
 CHANNEL_USERNAME = "@TonSpinEarn"
@@ -15,11 +18,32 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# === 🛠 КЛАВИАТУРАИ АСОСӢ (Бо ҳифзи реферал) ===
+# ==========================================
+# 🌐 СЕРВЕРИ "БЕДОРКУНАК" (FLASK KEEP ALIVE)
+# ==========================================
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is Alive! 24/7"
+
+def run_web_server():
+    # Портро аз Render мегирем ё 8080 мемонем
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    # Серверро дар замина (background) ба кор медарорем
+    t = threading.Thread(target=run_web_server)
+    t.start()
+
+# ==========================================
+# 🛠 КЛАВИАТУРАИ АСОСӢ (Бо ҳифзи реферал)
+# ==========================================
 def get_main_keyboard(ref_id=None):
     """
     Агар одам бо ссылкаи рефералӣ омада бошад, мо ID-и даъваткунандаро 
-    рост ба ссылкаи бозӣ мечаспонем, то ки Lovable онро хонда тавонад.
+    рост ба ссылкаи бозӣ мечаспонем.
     """
     url = WEB_APP_URL
     if ref_id:
@@ -30,7 +54,9 @@ def get_main_keyboard(ref_id=None):
         [InlineKeyboardButton(text="📢 Наш Канал", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")]
     ])
 
-# === 🚀 ФАРМОНИ /start ===
+# ==========================================
+# 🚀 ФАРМОНИ /start
+# ==========================================
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     username = message.from_user.username or message.from_user.first_name or "Без имени"
@@ -39,7 +65,7 @@ async def cmd_start(message: types.Message):
     args = message.text.split()
     ref_id = args[1] if len(args) > 1 else None
     
-    # Рост ба бозӣ даъват мекунем (бе ягон проверки подписка)
+    # Рост ба бозӣ даъват мекунем
     await message.answer(
         f"🎰 Добро пожаловать в **TON SPIN**, {username}!\n\n"
         f"Твоя цель — крутить рулетку, выполнять задания и зарабатывать криптовалюту TON.\n\n"
@@ -48,26 +74,17 @@ async def cmd_start(message: types.Message):
         parse_mode="Markdown"
     )
 
-# === 🌐 ВЕБ-СЕРВЕР БАРОИ RENDER (Ки бот хоб наравад) ===
-async def handle_ping(request):
-    return web.Response(text="TON SPIN Bot is running smoothly! 🚀")
-
+# ==========================================
+# ⚙️ АСОСӢ (АСИНХРОНӢ)
+# ==========================================
 async def main():
-    # Сохтани сервери хурд барои банд кардани Порт дар Render
-    app = web.Application()
-    app.router.add_get('/', handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
+    # 1. Сервери бедоркунакро ба кор медарорем
+    keep_alive()
+    print("✅ БОТ ВА СЕРВЕР ОҒОЗ ШУДАНД!")
     
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logging.info(f"Веб-сервер дар порти {port} ба кор даромад.")
-
-    # Ба кор даровардани худи Бот
+    # 2. Боти Телеграмро ба кор медарорем
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
