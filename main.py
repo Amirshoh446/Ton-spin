@@ -4,7 +4,7 @@ import logging
 import threading
 from flask import Flask
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 # ==========================================
@@ -28,23 +28,17 @@ def home():
     return "Bot is Alive! 24/7"
 
 def run_web_server():
-    # Портро аз Render мегирем ё 8080 мемонем
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    # Серверро дар замина (background) ба кор медарорем
     t = threading.Thread(target=run_web_server)
     t.start()
 
 # ==========================================
-# 🛠 КЛАВИАТУРАИ АСОСӢ (Бо ҳифзи реферал)
+# 🛠 КЛАВИАТУРАИ АСОСӢ
 # ==========================================
 def get_main_keyboard(ref_id=None):
-    """
-    Агар одам бо ссылкаи рефералӣ омада бошад, мо ID-и даъваткунандаро 
-    рост ба ссылкаи бозӣ мечаспонем.
-    """
     url = WEB_APP_URL
     if ref_id:
         url = f"{WEB_APP_URL}?start_param={ref_id}"
@@ -55,34 +49,39 @@ def get_main_keyboard(ref_id=None):
     ])
 
 # ==========================================
-# 🚀 ФАРМОНИ /start
+# 🚀 ФАРМОНИ /start (Ислоҳшуда барои 100% одамон)
 # ==========================================
 @dp.message(CommandStart())
-async def cmd_start(message: types.Message):
-    username = message.from_user.username or message.from_user.first_name or "Без имени"
+async def cmd_start(message: types.Message, command: CommandObject):
+    # Агар юзернейм набошад, номашро мегирад, агар ном ҳам набошад "Дӯсти азиз" мегӯяд
+    username = message.from_user.username or message.from_user.first_name or "Дӯсти азиз"
     
-    # Гирифтани ID-и реферал аз фармон (масалан: /start 123456789)
-    args = message.text.split()
-    ref_id = args[1] if len(args) > 1 else None
+    # Гирифтани реферал бо усули бехатари aiogram 3
+    ref_id = command.args
     
-    # Рост ба бозӣ даъват мекунем
-    await message.answer(
-        f"🎰 Добро пожаловать в **TON SPIN**, {username}!\n\n"
+    # Истифодаи HTML ба ҷои Markdown барои пешгирии хатогиҳо
+    text = (
+        f"🎰 Добро пожаловать в <b>TON SPIN</b>, {username}!\n\n"
         f"Твоя цель — крутить рулетку, выполнять задания и зарабатывать криптовалюту TON.\n\n"
-        f"Жми кнопку «ИГРАТЬ» ниже и забирай свой профит! 🚀",
-        reply_markup=get_main_keyboard(ref_id),
-        parse_mode="Markdown"
+        f"Жми кнопку «ИГРАТЬ» ниже и забирай свой профит! 🚀"
     )
+    
+    try:
+        await message.answer(
+            text,
+            reply_markup=get_main_keyboard(ref_id),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.error(f"Хатогӣ ҳангоми фиристодани паём: {e}")
 
 # ==========================================
 # ⚙️ АСОСӢ (АСИНХРОНӢ)
 # ==========================================
 async def main():
-    # 1. Сервери бедоркунакро ба кор медарорем
     keep_alive()
     print("✅ БОТ ВА СЕРВЕР ОҒОЗ ШУДАНД!")
     
-    # 2. Боти Телеграмро ба кор медарорем
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
